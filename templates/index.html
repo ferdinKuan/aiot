@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>AIoT 心情推薦系統</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 400px; width: 100%; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h2>請輸入你今天的感受</h2>
+
+    <textarea id="userInput" rows="5" cols="50" placeholder="例如：我今天壓力很大..."></textarea><br>
+    <button onclick="analyze()">分析心情</button>
+
+    <h3>結果：</h3>
+    <div id="result"></div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let markers = [];
+
+        function initMap() {
+            if (!map) {
+            map = L.map('map').setView([24.1477, 120.6736], 13); // 台中市中心
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: 'Map data © OpenStreetMap contributors'
+            }).addTo(map);
+            }
+
+        // 清除舊的標記
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+        }
+
+        async function analyze() {
+            const text = document.getElementById("userInput").value;
+
+            // 取得使用者位置
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const user_lat = pos.coords.latitude;
+                const user_lng = pos.coords.longitude;
+
+                const response = await fetch("/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        text: text,
+                        user_lat: user_lat,
+                        user_lng: user_lng
+                    })
+                });
+            
+
+            const data = await response.json();
+
+            // 顯示分析結果
+            document.getElementById("result").innerHTML = `
+                🧠 心情判斷：<strong>${data.mood}</strong><br>
+                🔑 關鍵字：${data.keywords.join(", ")}<br><br>
+                <strong>🍜 推薦餐廳：</strong><br>
+                ${data.recommendations.length > 0 
+                    ? data.recommendations.map(r => `
+                    ☕ ${r.name}（${r.type}，${r.price_level}）<br>
+                    ➤ mood tags: ${r.mood_tags}<br><br>
+                    `).join('')
+                : '找不到符合的推薦餐廳'}
+            `;
+
+             // 顯示地圖
+            initMap();
+            data.recommendations.forEach(r => {
+                const marker = L.marker([r.latitude, r.longitude])
+                    .addTo(map)
+                    .bindPopup(`<b>${r.name}</b><br>${r.type}，${r.price_level}<br>🧠 mood: ${r.mood_tags}`);
+                    markers.push(marker);
+            });
+
+            // 聚焦第一筆推薦地點
+            if (data.recommendations.length > 0) {
+                const center = [data.recommendations[0].latitude, data.recommendations[0].longitude];
+                map.setView(center, 15);
+            }
+
+            }, (err) => {
+                alert("⚠️ 請允許瀏覽器取得您的位置，才能推薦附近地點！");
+            });
+        }
+    </script>
+</body>
+</html>
