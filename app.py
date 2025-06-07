@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from mood_utils import analyze_mood
-from db_utils import search_restaurants
+from db_utils import search_restaurants  # 或 search_restaurants_by_mood if you have it
 
 app = Flask(__name__)
 
@@ -10,17 +10,19 @@ def home():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    user_input = request.json.get("text")
-    
-    # AI 情緒分析
-    mood_data = analyze_mood(user_input)
-    mood = mood_data["mood"]
-    keywords = mood_data["keywords"]
-    
-    # 查詢資料庫
-    recommendations = search_restaurants(mood)
+    data = request.get_json()
+    text = data.get("text")
+    user_lat = data.get("user_lat")
+    user_lng = data.get("user_lng")
 
-    # 回傳所有結果
+    # AI 情緒分析
+    mood_result = analyze_mood(text)
+    mood = mood_result["mood"]
+    keywords = mood_result["keywords"]
+
+    # 查詢推薦餐廳
+    recommendations = search_restaurants(mood, user_lat, user_lng)
+
     return jsonify({
         "mood": mood,
         "keywords": keywords,
