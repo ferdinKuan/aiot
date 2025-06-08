@@ -26,5 +26,3 @@ def analyze_mood(text):
         "mood": mood,
         "keywords": []  # 可擴充成自動提取關鍵字
     }
-
-# todo: 資料庫更新以產出更完整的推薦地圖

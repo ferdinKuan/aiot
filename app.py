@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from mood_utils import analyze_mood
-from db_utils import search_restaurants  # 或 search_restaurants_by_mood if you have it
+from search_google_places import search_places_by_mood  # ✅ 改這行
 
 app = Flask(__name__)
 
@@ -20,8 +20,8 @@ def analyze():
     mood = mood_result["mood"]
     keywords = mood_result["keywords"]
 
-    # 查詢推薦餐廳
-    recommendations = search_restaurants(mood, user_lat, user_lng)
+    # ✅ 使用 Google Places API 查推薦
+    recommendations = search_places_by_mood(text, mood, user_lat, user_lng)
 
     return jsonify({
         "mood": mood,

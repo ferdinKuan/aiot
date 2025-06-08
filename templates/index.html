@@ -25,16 +25,30 @@
 
         function initMap() {
             if (!map) {
-            map = L.map('map').setView([24.1477, 120.6736], 13); // 台中市中心
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: 'Map data © OpenStreetMap contributors'
-            }).addTo(map);
+                map = L.map('map').setView([24.1477, 120.6736], 13); // 預設中心：台中
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'Map data © OpenStreetMap contributors'
+                }).addTo(map);
+
+                // ⬇️ 加上定位功能
+                map.locate({ setView: true, maxZoom: 16 });
+
+                map.on('locationfound', function (e) {
+                L.marker(e.latlng).addTo(map)
+                    .bindPopup("📍 你在這裡").openPopup();
+                });
+
+                map.on('locationerror', function (e) {
+                alert("❗ 無法取得您的位置，請確認瀏覽器定位已開啟。");
+                });
             }
 
-        // 清除舊的標記
+            // 清除舊標記（你的原本程式碼）
             markers.forEach(m => map.removeLayer(m));
             markers = [];
         }
+
 
         async function analyze() {
             const text = document.getElementById("userInput").value;
