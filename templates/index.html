@@ -1,108 +1,242 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <title>AIoT 心情推薦系統</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { height: 400px; width: 100%; margin-top: 20px; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>晚餐吃甚麼?🍰🍔🧋</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #fffafc;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    .intro {
+      max-width: 900px;
+      margin-bottom: 30px;
+      text-align: center;
+      background-color: #ffeef3;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.03);
+    }
+
+    .main {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 30px;
+      max-width: 1100px;
+      width: 100%;
+    }
+
+    .left-panel, .right-panel {
+      flex: 1;
+    }
+
+    textarea {
+      width: 100%;
+      font-size: 16px;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      background-color: #ff7f7f;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background-color: #e06666;
+    }
+
+    #result {
+      margin-top: 25px;
+      padding: 20px;
+      border-radius: 10px;
+      background-color: #fff0f3;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+    }
+
+    #moreBtn {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .recommend-box {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-left: 4px solid #ff9999;
+      background: #fff6f6;
+    }
+
+    #map {
+      height: 100%;
+      min-height: 600px;
+      width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (max-width: 768px) {
+      .main {
+        flex-direction: column;
+      }
+
+      .right-panel {
+        margin-top: 20px;
+      }
+
+      #map {
+        height: 400px;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #result.fade-in {
+      animation: fadeIn 0.6s ease;
+    }
+  </style>
 </head>
 <body>
-    <h2>請輸入你今天的感受</h2>
+  <div class="container">
+    <div class="intro">
+      <h2>你今天想吃甚麼?</h2>
+      <p>輸入你想吃的類別預算心情等等，幫你選出附近最適合你的美食！🍔🍣🍫<br>
+        根據你的喜好、心情，結合定位與情緒模型，讓你每一天都吃得剛剛好 ❤️</p>
+    </div>
 
-    <textarea id="userInput" rows="5" cols="50" placeholder="例如：我今天壓力很大..."></textarea><br>
-    <button onclick="analyze()">分析心情</button>
+    <div class="main">
+      <div class="left-panel">
+        <h3>請輸入你今天的偏好(沒有也沒關係，可以打今天的心情就好)</h3>
+        <textarea id="userInput" rows="5" placeholder="例如：我今天壓力很大，想吃一頓大的..."></textarea><br />
+        <button onclick="analyze()">分析</button>
 
-    <h3>結果：</h3>
-    <div id="result"></div>
-    <div id="map"></div>
+        <h3>適合你的美食🍕：</h3>
+        <div id="result"></div>
+        <button id="moreBtn" onclick="showMore()">查看更多餐廳 🍽️</button>
+      </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        let map;
-        let markers = [];
+      <div class="right-panel">
+        <div id="map"></div>
+      </div>
+    </div>
+  </div>
 
-        function initMap() {
-            if (!map) {
-                map = L.map('map').setView([24.1477, 120.6736], 13); // 預設中心：台中
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map;
+    let markers = [];
+    let allRecommendations = [];
+    let showingAll = false;
 
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: 'Map data © OpenStreetMap contributors'
-                }).addTo(map);
+    const foodIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png',
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
 
-                // ⬇️ 加上定位功能
-                map.locate({ setView: true, maxZoom: 16 });
+    function initMap() {
+      if (!map) {
+        map = L.map('map').setView([24.1477, 120.6736], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: 'Map data © OpenStreetMap contributors'
+        }).addTo(map);
+      }
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
 
-                map.on('locationfound', function (e) {
-                L.marker(e.latlng).addTo(map)
-                    .bindPopup("📍 你在這裡").openPopup();
-                });
+    async function analyze() {
+      const text = document.getElementById("userInput").value;
+      const resultElement = document.getElementById("result");
+      const moreBtn = document.getElementById("moreBtn");
+      showingAll = false;
 
-                map.on('locationerror', function (e) {
-                alert("❗ 無法取得您的位置，請確認瀏覽器定位已開啟。");
-                });
-            }
+      resultElement.innerHTML = `⏳ 分析中，請稍候...`;
+      resultElement.classList.remove("fade-in");
+      moreBtn.style.display = "none";
 
-            // 清除舊標記（你的原本程式碼）
-            markers.forEach(m => map.removeLayer(m));
-            markers = [];
-        }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const user_lat = pos.coords.latitude;
+        const user_lng = pos.coords.longitude;
 
+        const response = await fetch("/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, user_lat, user_lng })
+        });
 
-        async function analyze() {
-            const text = document.getElementById("userInput").value;
+        const data = await response.json();
+        allRecommendations = data.recommendations;
 
-            // 取得使用者位置
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const user_lat = pos.coords.latitude;
-                const user_lng = pos.coords.longitude;
+        updateResults(data, false);
+      }, () => {
+        alert("⚠️ 請允許瀏覽器取得您的位置，才能推薦附近地點！");
+      });
+    }
 
-                const response = await fetch("/analyze", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        text: text,
-                        user_lat: user_lat,
-                        user_lng: user_lng
-                    })
-                });
-            
+    function showMore() {
+      showingAll = true;
+      updateResults({ mood: '', keywords: [], recommendations: allRecommendations }, true);
+    }
 
-            const data = await response.json();
+    function updateResults(data, showAll) {
+      const resultElement = document.getElementById("result");
+      const moreBtn = document.getElementById("moreBtn");
+      const recommendations = showAll ? data.recommendations : data.recommendations.slice(0, 3);
 
-            // 顯示分析結果
-            document.getElementById("result").innerHTML = `
-                🧠 心情判斷：<strong>${data.mood}</strong><br>
-                🔑 關鍵字：${data.keywords.join(", ")}<br><br>
-                <strong>🍜 推薦餐廳：</strong><br>
-                ${data.recommendations.length > 0 
-                    ? data.recommendations.map(r => `
-                    ☕ ${r.name}（${r.type}，${r.price_level}）<br>
-                    ➤ mood tags: ${r.mood_tags}<br><br>
-                    `).join('')
-                : '找不到符合的推薦餐廳'}
-            `;
+      resultElement.innerHTML = `
+        🧠 心情判斷：<strong>${data.mood}</strong><br>
+        🔑 關鍵字：${data.keywords.join(", ")}<br><br>
+        <strong>🍜 推薦餐廳：</strong><br>
+        ${recommendations.length > 0
+          ? recommendations.map(r => `
+              <div class="recommend-box">
+                🌟 <strong>${r.name}</strong><br>
+                📍 類型：${r.type} ｜ 💰 價位：${r.price_level}<br>
+              </div>
+            `).join('')
+          : '找不到符合的推薦餐廳'}
+      `;
+      resultElement.classList.add("fade-in");
+      moreBtn.style.display = showAll || recommendations.length <= 3 ? "none" : "inline-block";
 
-             // 顯示地圖
-            initMap();
-            data.recommendations.forEach(r => {
-                const marker = L.marker([r.latitude, r.longitude])
-                    .addTo(map)
-                    .bindPopup(`<b>${r.name}</b><br>${r.type}，${r.price_level}<br>🧠 mood: ${r.mood_tags}`);
-                    markers.push(marker);
-            });
+      initMap();
+      recommendations.forEach(r => {
+        const marker = L.marker([r.latitude, r.longitude], { icon: foodIcon })
+          .addTo(map)
+          .bindPopup(`<b>${r.name}</b><br>${r.type}，${r.price_level}<br>🧠 mood: ${r.mood_tags}`);
+        markers.push(marker);
+      });
 
-            // 聚焦第一筆推薦地點
-            if (data.recommendations.length > 0) {
-                const center = [data.recommendations[0].latitude, data.recommendations[0].longitude];
-                map.setView(center, 15);
-            }
-
-            }, (err) => {
-                alert("⚠️ 請允許瀏覽器取得您的位置，才能推薦附近地點！");
-            });
-        }
-    </script>
+      if (recommendations.length > 0) {
+        const center = [recommendations[0].latitude, recommendations[0].longitude];
+        map.setView(center, 15);
+      }
+    }
+  </script>
 </body>
 </html>
